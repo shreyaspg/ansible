@@ -1,0 +1,90 @@
+- name: Gather package facts
+  package_facts:
+    manager: apt
+
+
+- name: "Check if user {{ user_default_name }} exists"
+  getent:
+    database: passwd
+    key:  "{{ user_default_name }}"
+    # key:  root
+    fail_key: False
+  register: user_exists
+
+- name: Print result
+  debug:
+    msg: "User {{ user_default_name }} exists: {{user_exists.failed}}"
+
+- name: Print default password
+  debug:
+    msg: "Password {{ user_default_password | password_hash('sha512')}}"
+
+
+# - name: Check if package 'nginx' is installed
+#   debug:
+    # msg: "nginx is installed: {{ 'nginx' in ansible_facts.packages }}"
+
+- name: Update packages
+  apt:
+    update_cache : yes
+    upgrade: yes
+
+- name: Install Essential packages
+  package: 
+    name: "{{ essential_packages }}"
+    state: latest
+
+- name: Download and install Neovim AppImage
+  get_url:
+    url: https://github.com/neovim/neovim/releases/download/v0.9.4/nvim.appimage
+    dest: /opt/neovim.appimage
+    mode: 0755
+
+- name: Create a directory for AppImages (optional)
+  file:
+    path: /opt/appimages
+    state: directory
+    mode: 0755
+
+- name: Create a symbolic link to Neovim AppImage
+  file:
+    src: /opt/neovim.appimage
+    dest: /opt/appimages/nvim
+    state: link
+
+- name: Check if AppImage is already PATH'd
+  lineinfile:
+    state: absent
+    path: ".bashrc"
+    regexp: "^export PATH=$PATH:/opt/appimages"
+  check_mode: true
+  changed_when: false # This just makes things look prettier in the logs
+  register: check_appimage
+
+- name: Add AppImage directory to PATH (optional)
+  lineinfile:
+    path: ".bashrc"
+    line: 'export PATH=$PATH:/opt/appimages'
+    state: present
+  when: check_appimage.found == 0
+  register: appimage_pathd
+
+- name: Reload Shell
+  shell: source .bashrc
+  args:
+    executable : /bin/bash
+  when: check_appimage.changed == true
+
+- name: Disable SSH Password Auth
+  lineinfile:
+    path: "/etc/ssh/sshd_config"
+    regexp: '^#PasswordAuthentication yes'
+    line: "PasswordAuthentication no"
+    state: present
+  register: sshd_config
+
+- name: Restart SSH Daemon
+  service:
+    name: sshd
+    state: restarted
+  when: sshd_config.changed

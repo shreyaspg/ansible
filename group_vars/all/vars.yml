@@ -1,0 +1,6 @@
+essential_packages:
+  - vim
+  - tmux
+  - libfuse2
+
+user_default_name: "ashrys"
