@@ -2,27 +2,68 @@
   package_facts:
     manager: apt
 
-
+- name: Ensure all necessary groups are created
+  group: 
+    name: "{{ item }}"
+  loop: "{{ essential_groups }}"
+    
 - name: "Check if user {{ user_default_name }} exists"
   getent:
     database: passwd
     key:  "{{ user_default_name }}"
-    # key:  root
     fail_key: False
   register: user_exists
 
-- name: Print result
-  debug:
-    msg: "User {{ user_default_name }} exists: {{user_exists.failed}}"
+- name: Create a login user
+  user:
+    name: "{{ user_default_name }}"
+    password: "{{ user_default_password }}"
+    groups: 
+      - docker
+      - sudo
+    state: present
+    append: yes
+    shell: "{{ user_shell }}"    
+    system: no          
+    createhome: yes 
+    home: /home/{{ user_default_name }}
+    update_password: on_create
 
-- name: Print default password
-  debug:
-    msg: "Password {{ user_default_password | password_hash('sha512')}}"
 
+- name: Chmod the user home directory
+  file:
+    path: /home/{{ user_default_name }}
+    state: directory
+    mode: 0755
+    owner: "{{ user_default_name }}"
+    group: "{{ user_default_name }}"
+    recurse: yes
 
-# - name: Check if package 'nginx' is installed
+- name: Allow '{{ sudo_group }}' group to have passwordless sudo
+  lineinfile:
+    path: /etc/sudoers
+    state: present
+    regexp: '^%{{ sudo_group }}'
+    line: '%{{ sudo_group }} ALL=(ALL) NOPASSWD: ALL'
+    validate: '/usr/sbin/visudo -cf %s'
+
+# - name: Print result
 #   debug:
-    # msg: "nginx is installed: {{ 'nginx' in ansible_facts.packages }}"
+#     msg: "User {{ user_default_name }} exists: {{user_exists.failed}}"
+
+# - name: Print default password
+#   debug:
+#     msg: "Password {{ user_default_password | password_hash('sha512')}}"
+
+- name: Suppress login messages
+  file:
+    name: /home/{{ user_default_name }}/.hushlogin
+    mode: 0644
+    state: touch
+    owner: "{{ user_default_name }}"
+    group: "{{ user_default_name }}"
+    modification_time: preserve
+    access_time: preserve
 
 - name: Update packages
   apt:

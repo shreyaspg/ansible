@@ -2,5 +2,15 @@ essential_packages:
   - vim
   - tmux
   - libfuse2
+  - zsh
 
-user_default_name: "ashrys"
+essential_groups:
+  - docker
+  - samba
+  - "{{ user_default_name }}"
+
+user_default_name: ashrys
+
+user_shell : /bin/zsh 
+
+sudo_group : sudo
